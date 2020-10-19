@@ -36,7 +36,7 @@ try:
     p1 = carla.Location(x=200, y=-6, z=1)  # Start point
     p2 = carla.Location(x=142.1, y=64, z=1)  # End point
 
-    obs_p = carla.Location(x=150, y=-3, z=1) # Obstacle position
+    obs_p = carla.Location(x=160, y=-3, z=1) # Obstacle position
 
     print('Available Audis')
     for c in bpl.filter('vehicle.audi.*'):
