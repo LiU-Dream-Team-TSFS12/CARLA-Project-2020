@@ -13,13 +13,20 @@ from algs.misc import BoxOff
 rg = np.random.default_rng()
 
 # Connect to a running Carla server and get main pointers
-HOST = 'localhost'
+if len(sys.argv) > 1:
+    HOST = sys.argv[1]
+else:
+    HOST = 'localhost'
 PORT = 2000
+CAM_OPTS = ["3rd", "topdown", "free"]
+CAM = CAM_OPTS[0]
+
 client = carla.Client(HOST, PORT)
 client.set_timeout(2.0)
 
 try:
-    print("Connected to CARLA server version: {}".format(client.get_server_version()))
+    print("Connected to CARLA server version: {}".format(
+        client.get_server_version()))
 except:
     print('Not connected to server, exiting...')
     exit()
@@ -36,20 +43,21 @@ try:
     p1 = carla.Location(x=200, y=-6, z=1)  # Start point
     p2 = carla.Location(x=142.1, y=64, z=1)  # End point
 
-    obs_p = carla.Location(x=160, y=-3, z=1) # Obstacle position
-
+    """
     print('Available Audis')
     for c in bpl.filter('vehicle.audi.*'):
         print(c.id)
     bp = rg.choice(bpl.filter('vehicle.audi.*'))
     print('Random selection: {}'.format(bp.id))
-
+    """
+    bp = rg.choice(bpl.filter('vehicle.tesla.*'))
     actors = []
     car = world.spawn_actor(bp, carla.Transform(p1))
     actors.append(car)
 
-    obs = world.spawn_actor(bp, carla.Transform(obs_p))
-    actors.append(obs)
+    # obs_p = carla.Location(x=160, y=-3, z=1)  # Obstacle position
+    #obs = world.spawn_actor(bp, carla.Transform(obs_p))
+    # actors.append(obs)
 
     print('Added a car to the world: {}'.format(car.id))
 
@@ -78,11 +86,12 @@ try:
     print('Plot the plan in the CARLA simulator')
     T = -1  # Time before line dissapears, negative for never
     for s1, s2 in zip(s[:-1], s[1:]):
-        s1_loc = carla.Location(x=float(path.x(s1)), y=float(path.y(s1)), z=0.5)
-        s2_loc = carla.Location(x=float(path.x(s2)), y=float(path.y(s2)), z=0.5)
+        s1_loc = carla.Location(x=float(path.x(s1)),
+                                y=float(path.y(s1)), z=0.5)
+        s2_loc = carla.Location(x=float(path.x(s2)),
+                                y=float(path.y(s2)), z=0.5)
         world.debug.draw_line(s1_loc, s2_loc, thickness=0.35,
                               life_time=T, color=carla.Color(b=255))
-
 
     class StateFeedbackController:
         def __init__(self, K, L, path=None, goal_tol=1):
@@ -123,7 +132,7 @@ try:
             theta_e = self.heading_error(heading, si)
 
             # No feed-forward term
-            u =  - self.K.dot(np.array([d*glob_stab_fact(theta_e), theta_e]))[0]
+            u = - self.K.dot(np.array([d*glob_stab_fact(theta_e), theta_e]))[0]
             delta = np.max((-1.0, np.min((1.0, self.L*u))))
 
             self.d.append(d)
@@ -144,8 +153,8 @@ try:
             else:
                 return True
 
-
-    init_transform = route[0][0].transform # Set car in initial position of the plan
+    # Set car in initial position of the plan
+    init_transform = route[0][0].transform
     car.set_transform(init_transform)
     car.apply_control(carla.VehicleControl(throttle=0, steer=0))
 
@@ -154,6 +163,19 @@ try:
     ctrl = StateFeedbackController(K, L, path)
     car_states = []
     tl = []
+
+    def render_cam(t, l, sp):
+        spt = sp.get_transform()
+        pitch = spt.rotation.pitch
+        roll = spt.rotation.roll
+        yaw = t.rotation.yaw * np.pi/180
+        # print(yaw)
+        rot = carla.Rotation(pitch, t.rotation.yaw, roll)
+        loc = carla.Location(l.x+10*np.cos(yaw+np.pi),
+                             l.y+10*np.sin(yaw+np.pi), l.z+5)
+
+        return carla.Transform(loc, rot)
+
     print('Pause for a second to let the car settle')
     time.sleep(1)
     print('Start driving ...')
@@ -162,8 +184,24 @@ try:
         t = car.get_transform()
         v = car.get_velocity()
         v = np.sqrt(v.x**2+v.y**2+v.z**2)
-        w = np.array([t.location.x, t.location.y, t.rotation.yaw*np.pi/180.0, v])
+        w = np.array([t.location.x, t.location.y,
+                      t.rotation.yaw*np.pi/180.0, v])
         car_states.append(w)
+
+        # 3rd person camera
+        l = car.get_location()
+        #spt = sp.get_transform()
+        #pitch = spt.rotation.pitch
+        #roll = spt.rotation.roll
+        #yaw = t.rotation.yaw * np.pi/180
+        # print(yaw)
+        #rot = carla.Rotation(pitch, t.rotation.yaw, roll)
+        # loc = carla.Location(l.x+10*np.cos(yaw+np.pi),
+        #                     l.y+10*np.sin(yaw+np.pi), l.z+5)
+
+        #t2 = carla.Transform(loc, rot)
+        t2 = render_cam(t, l, sp)
+        sp.set_transform(t2)
 
         # Compute control signal and apply to car
         u = ctrl.u(tck.timestamp.elapsed_seconds, w)
@@ -178,6 +216,7 @@ try:
     for a in actors:
         a.destroy()
 
+    """
     print('Plot some results')
     s = np.linspace(0, path.length, 500)
     plt.figure(20, clear=True)
@@ -200,8 +239,13 @@ try:
     plt.xlabel('t [s]')
     BoxOff()
     plt.show()
+    """
 
 except KeyboardInterrupt:
+    car.apply_control(carla.VehicleControl(throttle=0, steer=0))
+    car_states = np.array(car_states)
+    ctrl.t = np.array(ctrl.t)-ctrl.t[0]
+
     for a in actors:
         a.destroy()
     print("Actors destroyed!")
