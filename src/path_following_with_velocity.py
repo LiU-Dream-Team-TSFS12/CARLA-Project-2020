@@ -14,7 +14,10 @@ rg = np.random.default_rng()
 
 
 # Connect to a running Carla server and get main pointers
-HOST = '192.168.0.103'
+if (len(sys.argv) > 1):
+    HOST = sys.argv[1]
+else:
+    HOST = 'localhost'
 PORT = 2000
 client = carla.Client(HOST, PORT)
 client.set_timeout(2.0)
@@ -28,7 +31,7 @@ except:
 
 world = client.get_world()
 bpl = world.get_blueprint_library()
-sp = world.get_spectator() 
+sp = world.get_spectator()
 
 weather = world.get_weather()
 world.set_weather(weather.ClearNoon)
@@ -38,7 +41,7 @@ p1 = carla.Location(x=200, y=-6, z=1)  # Start point
 p2 = carla.Location(x=142.1, y=64, z=1)  # End point
 p_obs_car = carla.Location(x=100,y=-4,z=0.2)
 bp = rg.choice(bpl.filter('vehicle.tesla.model3'))
-bp_obs = rg.choice(bpl.filter('vehicle.tesla.cybertruck'))
+bp_obs = rg.choice(bpl.filter('vehicle.tesla.model3'))
 
 actors = []
 car = world.spawn_actor(bp, carla.Transform(p1))
@@ -84,7 +87,7 @@ T = 10  # Time before line dissapears, negative for never
 for s1, s2 in zip(s[:-1], s[1:]):
     s1_loc = carla.Location(x=float(path.x(s1)), y=float(path.y(s1)), z=0.5)
     s2_loc = carla.Location(x=float(path.x(s2)), y=float(path.y(s2)), z=0.5)
-    world.debug.draw_line(s1_loc, s2_loc, thickness=0.35, 
+    world.debug.draw_line(s1_loc, s2_loc, thickness=0.35,
                             color=carla.Color(b=255))
 
 
@@ -119,13 +122,13 @@ class StateFeedbackController:
             return 0.7
         else:
             return  0.0
-        
+
     def u(self, t, w):
         def glob_stab_fact(x):
             """Series expansion of sin(x)/x around x=0."""
             return 1 - x**2/6 + x**4/120 - x**6/5040
 
-        
+
         x, y, theta, v = w
         a = self.obsticle_distance(w)
         self.w.append(w)
@@ -148,7 +151,7 @@ class StateFeedbackController:
         self.t.append(t)
 
         return np.array([delta, a])
-    
+
     def run(self, t, w):
         p_goal = self.plan.path[-1, :]
         p_car = w[0:2]
@@ -179,8 +182,8 @@ while ctrl.s0 < path.length-5:
     v = np.sqrt(v.x**2+v.y**2+v.z**2)
     w = np.array([t.location.x, t.location.y, t.rotation.yaw*np.pi/180.0, v])
     car_states.append(w)
-    
-    
+
+
     t.rotation = (carla.Rotation(-90,0,0))
     spt = sp.get_transform()
     t.location.z = spt.location.z
@@ -190,7 +193,7 @@ while ctrl.s0 < path.length-5:
     print(u[1])
     car.apply_control(carla.VehicleControl(throttle=u[1], steer=u[0],brake=0.7-u[1]))
 
-# Stop car after finished route    
+# Stop car after finished route
 car.apply_control(carla.VehicleControl(throttle=0, steer=0))
 car_states = np.array(car_states)
 ctrl.t = np.array(ctrl.t)-ctrl.t[0]
