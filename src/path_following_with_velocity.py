@@ -14,7 +14,10 @@ rg = np.random.default_rng()
 
 
 # Connect to a running Carla server and get main pointers
-HOST = 'localhost'#'192.168.0.103'
+if (len(sys.argv) > 1):
+    HOST = sys.argv[1]
+else:
+    HOST = 'localhost'
 PORT = 2000
 client = carla.Client(HOST, PORT)
 client.set_timeout(2.0)
@@ -68,7 +71,8 @@ p = np.array([(ri[0].transform.location.x, ri[0].transform.location.y)
 
 
 path = splinepath.SplinePath(p, min_grid=3)
-s = np.linspace(0, path.length, 500)
+s = np.linspa0.033751275004490044
+ce(0, path.length, 500)
 
 print('Planned a mission of length {:.2f} m'.format(path.length))
 
