@@ -14,7 +14,7 @@ rg = np.random.default_rng()
 
 
 # Connect to a running Carla server and get main pointers
-HOST = '192.168.0.103'
+HOST = 'localhost'#'192.168.0.103'
 PORT = 2000
 client = carla.Client(HOST, PORT)
 client.set_timeout(2.0)
@@ -28,7 +28,7 @@ except:
 
 world = client.get_world()
 bpl = world.get_blueprint_library()
-sp = world.get_spectator() 
+sp = world.get_spectator()
 
 weather = world.get_weather()
 world.set_weather(weather.ClearNoon)
@@ -36,9 +36,9 @@ world.set_weather(weather.ClearNoon)
 # A simple first test-case -- path following in an empty world
 p1 = carla.Location(x=200, y=-6, z=1)  # Start point
 p2 = carla.Location(x=142.1, y=64, z=1)  # End point
-p_obs_car = carla.Location(x=100,y=-4,z=0.2)
+p_obs_car = carla.Location(x=150,y=-4,z=0.2)
 bp = rg.choice(bpl.filter('vehicle.tesla.model3'))
-bp_obs = rg.choice(bpl.filter('vehicle.tesla.cybertruck'))
+bp_obs = rg.choice(bpl.filter('vehicle.tesla.model3'))
 
 actors = []
 car = world.spawn_actor(bp, carla.Transform(p1))
@@ -52,7 +52,7 @@ t.location = p_obs_car
 t.rotation.yaw = 180
 obs_car.set_transform(t)
 actors.append(obs_car)
-obs_car.apply_control(carla.VehicleControl(throttle=0.6, steer=0))
+obs_car.apply_control(carla.VehicleControl(throttle=0, steer=0))
 print('Added a car to the world: {}'.format(car.id))
 
 # Plan a mission
@@ -84,7 +84,7 @@ T = 10  # Time before line dissapears, negative for never
 for s1, s2 in zip(s[:-1], s[1:]):
     s1_loc = carla.Location(x=float(path.x(s1)), y=float(path.y(s1)), z=0.5)
     s2_loc = carla.Location(x=float(path.x(s2)), y=float(path.y(s2)), z=0.5)
-    world.debug.draw_line(s1_loc, s2_loc, thickness=0.35, 
+    world.debug.draw_line(s1_loc, s2_loc, thickness=0.35,
                             color=carla.Color(b=255))
 
 
@@ -111,23 +111,30 @@ class StateFeedbackController:
         theta_e = np.arctan2(sin_alpha, cos_alpha)
         return theta_e
 
-    def obsticle_distance(self,car_state):
+    def obsticle_distance_error(self,car_state):
         """Get distance to an obsticle to regulate speed"""
         x,y,theta,v = car_state
         obs_x= obs_car.get_transform().location.x
-        if abs(obs_x - x) > 20:
-            return 0.7
-        else:
-            return  0.0
-        
+        return abs(obs_x - x)
+
     def u(self, t, w):
         def glob_stab_fact(x):
             """Series expansion of sin(x)/x around x=0."""
             return 1 - x**2/6 + x**4/120 - x**6/5040
 
-        
+
         x, y, theta, v = w
-        a = self.obsticle_distance(w)
+
+        a = 0.7
+        b = 0
+        obsticle_dictance_error = self.obsticle_distance_error(w)
+        if obsticle_dictance_error < v:
+            a=0.0
+            b=1.0
+        elif obsticle_dictance_error < v*3:
+            a = 0.7 -3/(obsticle_dictance_error)
+            b = 1 - obsticle_dictance_error/2
+
         self.w.append(w)
         p_car = w[0:2]
         si, d = self.plan.project(p_car, self.s0, ds=2, s_lim=20)
@@ -140,15 +147,16 @@ class StateFeedbackController:
         u =  - self.K.dot(np.array([d*glob_stab_fact(theta_e), theta_e]))[0]
         delta = np.max((-1.0, np.min((1.0, self.L*u))))
         #a=a*0.008
-        a= np.max((0.0,np.min((1.0,a))))
+        a= np.max((0.0,np.min((0.7,a))))
+        b= np.max((0.0,np.min((1.0,b))))
         self.d.append(d)
         self.delta.append(delta)
         self.s_p.append(si)
         self.theta_e.append(theta_e)
         self.t.append(t)
 
-        return np.array([delta, a])
-    
+        return np.array([delta, a, b])
+
     def run(self, t, w):
         p_goal = self.plan.path[-1, :]
         p_car = w[0:2]
@@ -179,8 +187,8 @@ while ctrl.s0 < path.length-5:
     v = np.sqrt(v.x**2+v.y**2+v.z**2)
     w = np.array([t.location.x, t.location.y, t.rotation.yaw*np.pi/180.0, v])
     car_states.append(w)
-    
-    
+
+
     t.rotation = (carla.Rotation(-90,0,0))
     spt = sp.get_transform()
     t.location.z = spt.location.z
@@ -188,9 +196,9 @@ while ctrl.s0 < path.length-5:
     # Compute control signal and apply to car
     u = ctrl.u(tck.timestamp.elapsed_seconds, w)
     print(u[1])
-    car.apply_control(carla.VehicleControl(throttle=u[1], steer=u[0],brake=0.7-u[1]))
+    car.apply_control(carla.VehicleControl(throttle=u[1], steer=u[0], brake=u[2]))
 
-# Stop car after finished route    
+# Stop car after finished route
 car.apply_control(carla.VehicleControl(throttle=0, steer=0))
 car_states = np.array(car_states)
 ctrl.t = np.array(ctrl.t)-ctrl.t[0]
