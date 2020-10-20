@@ -30,6 +30,12 @@ except:
 
 
 world = client.get_world()
+
+actors = world.get_actors()
+for a in actors:
+    if not a.type_id == "spectator":
+        a.destroy()
+
 bpl = world.get_blueprint_library()
 sp = world.get_spectator()
 
@@ -39,7 +45,7 @@ world.set_weather(weather.ClearNoon)
 # A simple first test-case -- path following in an empty world
 p1 = carla.Location(x=200, y=-6, z=1)  # Start point
 p2 = carla.Location(x=142.1, y=64, z=1)  # End point
-p_obs_car = carla.Location(x=80,y=-4,z=0.2)
+p_obs_car = carla.Location(x=40,y=-4,z=0.2)
 bp = rg.choice(bpl.filter('vehicle.tesla.model3'))
 bp_obs = rg.choice(bpl.filter('vehicle.tesla.model3'))
 
@@ -131,11 +137,11 @@ class StateFeedbackController:
         a = 0.7
         b = 0
         obsticle_dictance_error = self.obsticle_distance_error(w)
-        if obsticle_dictance_error < v*2 or obsticle_dictance_error < 10:
+        if obsticle_dictance_error < v*2 or obsticle_dictance_error < 8:
             a=0.0
             b=1.0
         elif obsticle_dictance_error < v*3:
-            a = 0.7 -5/(obsticle_dictance_error)
+            a = 0.7 -8/(obsticle_dictance_error)
             #b = 1 - obsticle_dictance_error
 
         self.w.append(w)
@@ -198,7 +204,7 @@ while ctrl.s0 < path.length-5:
     sp.set_transform(t)
     # Compute control signal and apply to car
     u = ctrl.u(tck.timestamp.elapsed_seconds, w)
-    print(u[1])
+    print(v)
     car.apply_control(carla.VehicleControl(throttle=u[1], steer=u[0], brake=u[2]))
 
 # Stop car after finished route
