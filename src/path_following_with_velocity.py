@@ -39,7 +39,7 @@ world.set_weather(weather.ClearNoon)
 # A simple first test-case -- path following in an empty world
 p1 = carla.Location(x=200, y=-6, z=1)  # Start point
 p2 = carla.Location(x=142.1, y=64, z=1)  # End point
-p_obs_car = carla.Location(x=150,y=-4,z=0.2)
+p_obs_car = carla.Location(x=80,y=-4,z=0.2)
 bp = rg.choice(bpl.filter('vehicle.tesla.model3'))
 bp_obs = rg.choice(bpl.filter('vehicle.tesla.model3'))
 
@@ -55,7 +55,7 @@ t.location = p_obs_car
 t.rotation.yaw = 180
 obs_car.set_transform(t)
 actors.append(obs_car)
-obs_car.apply_control(carla.VehicleControl(throttle=0, steer=0))
+obs_car.apply_control(carla.VehicleControl(throttle=0.0, steer=0))
 print('Added a car to the world: {}'.format(car.id))
 
 # Plan a mission
@@ -71,8 +71,7 @@ p = np.array([(ri[0].transform.location.x, ri[0].transform.location.y)
 
 
 path = splinepath.SplinePath(p, min_grid=3)
-s = np.linspa0.033751275004490044
-ce(0, path.length, 500)
+s = np.linspace(0, path.length, 500)
 
 print('Planned a mission of length {:.2f} m'.format(path.length))
 
@@ -132,12 +131,12 @@ class StateFeedbackController:
         a = 0.7
         b = 0
         obsticle_dictance_error = self.obsticle_distance_error(w)
-        if obsticle_dictance_error < v:
+        if obsticle_dictance_error < v*2 or obsticle_dictance_error < 10:
             a=0.0
             b=1.0
         elif obsticle_dictance_error < v*3:
-            a = 0.7 -3/(obsticle_dictance_error)
-            b = 1 - obsticle_dictance_error/2
+            a = 0.7 -5/(obsticle_dictance_error)
+            #b = 1 - obsticle_dictance_error
 
         self.w.append(w)
         p_car = w[0:2]
