@@ -86,14 +86,19 @@ class Controller:
             if obstacle_distance < EMERGENCY_BRAKE_DISTANCE:
                 a=0.0
                 b=1.0
+            elif obstacle_distance > 50:
+                a = MAX_THROTTLE
             elif obstacle_distance < v * 3:
                 #a = MAX_THROTTLE - K_BRAKE/obstacle_distance
-                a = 0
+                a = 0.0
                 b = K_BRAKE/obstacle_distance
-                #print(b)
+            else:
+                a = v/14 + obstacle_distance/40
+                b = 0.0
 
             a = np.max((0.0,np.min((MAX_THROTTLE,a))))
             b = np.max((0.0,np.min((1.0,b))))
+
 
         print("T: %f \tB: %f" % (a, b))
 
