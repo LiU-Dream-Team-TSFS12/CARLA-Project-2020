@@ -17,8 +17,7 @@ class PathPoint:
         self.normal = normal
 
 class Controller:
-    def __init__(self, K, L, path=None, goal_tol=1):
-        self.plan = path
+    def __init__(self, K, L, goal_tol=1):
         self.K = K
         self.goal_tol = goal_tol
         self.d = []
@@ -30,17 +29,16 @@ class Controller:
         self.t = []
         self.w = []
 
-    def heading_error(self, heading, s):
+    def heading_error(self, heading, s, path):
         """Compute theta error"""
-        heading0, nc = self.plan.heading(s)
+        heading0, nc = path.heading(s)
         cos_alpha = heading.dot(heading0)
         sin_alpha = np.float(np.cross(heading0, heading))
 
         theta_e = np.arctan2(sin_alpha, cos_alpha)
         return theta_e
 
-    def perception_points(self, origin):
-        plan = self.plan
+    def perception_points(self, origin, path):
         #points = [origin]
         #while np.linalg.norm(points[-1] - (origin + v)) >= res:
             #points.append(points[-1] + v / np.linalg.norm(v) * res)
@@ -53,14 +51,14 @@ class Controller:
         points=[]
         while distance < LOOK_AHEAD_HORIZON:
             s = s0 + displacement
-            x = plan.p(s)[0]
-            y = plan.p(s)[1]
+            x = path.p(s)[0]
+            y = path.p(s)[1]
             if points:
                 delta_x = points[-1].x - x
                 delta_y = points[-1].y - y
                 distance += np.linalg.norm(np.array([delta_x, delta_y]))
 
-            point = PathPoint(x, y, distance, plan.heading(s)[1])
+            point = PathPoint(x, y, distance, path.heading(s)[1])
             #print(plan.heading(s)[1])
             points.append(point)
             displacement += LINE_RESOLUTION
@@ -77,14 +75,12 @@ class Controller:
 
 
 
-    def find_nearest_obstacle(self, w, wg, _world):
+    def find_nearest_obstacle(self, w, wg, path, _world):
         origin = np.array([w[0], w[1]])
-
-
 
         closest_dist = float('inf')
 
-        for p in self.perception_points(origin):
+        for p in self.perception_points(origin, path):
             d = p.dist
 
             if wg.is_obstructed((p.x,p.y)) and d < closest_dist:
@@ -98,7 +94,7 @@ class Controller:
 
         return closest_dist
 
-    def u(self, t, w, wg, _world):
+    def u(self, t, w, wg, path, _world):
         def glob_stab_fact(x):
             """Series expansion of sin(x)/x around x=0."""
             return 1 - x**2/6 + x**4/120 - x**6/5040
@@ -107,7 +103,7 @@ class Controller:
         x, y, theta, v = w
 
         # Find nearest obstacle
-        obstacle_distance = self.find_nearest_obstacle(w, wg, _world)
+        obstacle_distance = self.find_nearest_obstacle(w, wg, path, _world)
 
         # Colission avoidance
         a = MAX_THROTTLE
@@ -135,12 +131,12 @@ class Controller:
         # Calculate position and distance error
         self.w.append(w)
         p_car = w[0:2]
-        si, d = self.plan.project(p_car, self.s0, ds=2, s_lim=20)
+        si, d = path.project(p_car, self.s0, ds=2, s_lim=20)
 
         # Calculate rotational error and steering angle
         self.s0 = si
         heading = np.array([np.cos(theta), np.sin(theta)])
-        theta_e = self.heading_error(heading, si)
+        theta_e = self.heading_error(heading, si, path)
 
         u =  - self.K.dot(np.array([d*glob_stab_fact(theta_e), theta_e]))[0]
         delta = np.max((-1.0, np.min((1.0, self.L*u))))

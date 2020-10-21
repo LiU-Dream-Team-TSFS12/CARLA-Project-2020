@@ -26,6 +26,11 @@ except:
 
 
 world = client.get_world()
+
+for actor in world.get_actors():
+    if actor.type_id != 'spectator':
+        actor.destroy()
+
 bpl = world.get_blueprint_library()
 sp = world.get_spectator()
 
@@ -33,13 +38,12 @@ weather = world.get_weather()
 world.set_weather(weather.ClearNoon)
 
 # A simple first test-case -- path following in an empty world
-p1 = carla.Location(x=200, y=-6, z=1)  # Start point
-p2 = carla.Location(x=142.1, y=64, z=1)  # End point
+#p1 = carla.Location(x=200, y=-6, z=1)  # Start point
+#p2 = carla.Location(x=142.1, y=64, z=1)  # End point
+p1 = carla.Location(x=243, y=100, z=1)  # Start point
+p2 = carla.Location(x=244, y=-167, z=1)  # End point
 
-print('Available Audis')
-for c in bpl.filter('vehicle.audi.*'):
-    print(c.id)
-bp = rg.choice(bpl.filter('vehicle.audi.*'))
+bp = rg.choice(bpl.filter('vehicle.tesla.model3'))
 print('Random selection: {}'.format(bp.id))
 
 actors = []
@@ -50,10 +54,17 @@ print('Added a car to the world: {}'.format(car.id))
 
 # Plan a mission
 
-dao = GlobalRoutePlannerDAO(world.get_map(), sampling_resolution=5)
+dao = GlobalRoutePlannerDAO(world.get_map(), sampling_resolution=1)
 rp = GlobalRoutePlanner(dao)
 rp.setup()
 route = rp.trace_route(p1, p2)
+
+# Spawn an obstacle car
+bp = rg.choice(bpl.filter('vehicle.audi.*'))
+obs = world.spawn_actor(bp, route[70][0].transform)
+obs.apply_control(carla.VehicleControl(throttle=0.3, steer=0))
+actors.append(obs)
+
 
 # Create path object using nodes
 p = np.array([(ri[0].transform.location.x, ri[0].transform.location.y)
@@ -69,85 +80,36 @@ car.set_transform(t)
 t.location.z += 15  # 15 meters above car
 sp.set_transform(t)
 
-
-class StateFeedbackController:
-    def __init__(self, K, L, path=None, goal_tol=1):
-        self.plan = path
-        self.K = K
-        self.goal_tol = goal_tol
-        self.d = []
-        self.delta = []
-        self.theta_e = []
-        self.s_p = []
-        self.L = L
-        self.s0 = 0
-        self.t = []
-        self.w = []
-
-    def heading_error(self, heading, s):
-        """Compute theta error"""
-        heading0, nc = self.plan.heading(s)
-        cos_alpha = heading.dot(heading0)
-        sin_alpha = np.float(np.cross(heading0, heading))
-
-        theta_e = np.arctan2(sin_alpha, cos_alpha)
-        return theta_e
-
-    def u(self, t, w):
-        def glob_stab_fact(x):
-            """Series expansion of sin(x)/x around x=0."""
-            return 1 - x**2/6 + x**4/120 - x**6/5040
-
-        a = 0
-        x, y, theta, v = w
-        self.w.append(w)
-        p_car = w[0:2]
-        si, d = self.plan.project(p_car, self.s0, ds=2, s_lim=20)
-        self.s0 = si
-
-        heading = np.array([np.cos(theta), np.sin(theta)])
-        theta_e = self.heading_error(heading, si)
-
-        # No feed-forward term
-        u =  - self.K.dot(np.array([d*glob_stab_fact(theta_e), theta_e]))[0]
-        delta = np.max((-1.0, np.min((1.0, self.L*u))))
-
-        self.d.append(d)
-        self.delta.append(delta)
-        self.s_p.append(si)
-        self.theta_e.append(theta_e)
-        self.t.append(t)
-
-        return np.array([delta, a])
-
-    def run(self, t, w):
-        p_goal = self.plan.path[-1, :]
-        p_car = w[0:2]
-        dp = p_car - p_goal
-        dist = np.sqrt(dp.dot(dp))
-        if dist < self.goal_tol:
-            return False
-        else:
-            return True
-
-
 init_transform = route[0][0].transform # Set car in initial position of the plan
 car.set_transform(init_transform)
 car.apply_control(carla.VehicleControl(throttle=0, steer=0))
 
 K = np.array([0.1, 0.25]).reshape((1, 2))
 L = 3.5
-ctrl = StateFeedbackController(K, L, path)
 car_states = []
 tl = []
-print('Pause for a second to let the car settle')
+print('Pause for a second to let ow = time.time()the car settle')
 time.sleep(1)
 print('Start driving ...')
 
-from route_planner import RoutePlanner
-route_planner = RoutePlanner([r[0] for r in route], 1)
+from lidar import Lidar
+lidar = Lidar(world, car)
 
-while ctrl.s0 < path.length-5:
+from object_detector import ObjectDetector
+object_detector = ObjectDetector(lidar, 1)
+
+from route_planner import RoutePlanner
+route_planner = RoutePlanner([r[0] for r in route], .5)
+
+lidar.start()
+
+from controller import Controller
+ctrl = Controller(K, L)
+
+import time
+
+previous_time = -1
+while True:
     tck = world.wait_for_tick(1)
     t = car.get_transform()
     v = car.get_velocity()
@@ -155,11 +117,30 @@ while ctrl.s0 < path.length-5:
     w = np.array([t.location.x, t.location.y, t.rotation.yaw*np.pi/180.0, v])
     car_states.append(w)
 
-    #route_planner.get_path(tck.timestamp.delta_seconds)
+    if previous_time == -1:
+        previous_time = tck.timestamp.elapsed_seconds
+
+    dt = tck.timestamp.elapsed_seconds - previous_time
+
+    #now = time.time()
+    wg = object_detector.get_world_grid(dt)
+    #print("obj. detector duration: ", time.time() - now)
+
+    #now = time.time()
+    path = route_planner.get_path(dt, w, wg, world)
+    #print("route planner duration: ", time.time() - now)
+
+    # Temporary debug draw
+    s = np.linspace(0, path.length, 500)
+    for s1, s2 in zip(s[:-1], s[1:]):
+        s1_loc = carla.Location(x=float(path.x(s1)), y=float(path.y(s1)), z=0.5)
+        s2_loc = carla.Location(x=float(path.x(s2)), y=float(path.y(s2)), z=0.5)
+        world.debug.draw_line(s1_loc, s2_loc, thickness=0.35,
+                              life_time=.5, color=carla.Color(b=255))
 
     # Compute control signal and apply to car
-    u = ctrl.u(tck.timestamp.elapsed_seconds, w)
-    car.apply_control(carla.VehicleControl(throttle=0.7, steer=u[0]))
+    u = ctrl.u(tck.timestamp.elapsed_seconds, w, wg, path, world)
+    car.apply_control(carla.VehicleControl(throttle=u[1], steer=u[0], brake=u[2]))
 
 
 
