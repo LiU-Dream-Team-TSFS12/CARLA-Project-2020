@@ -4,7 +4,7 @@ import numpy as np
 LOOK_AHEAD_HORIZON = 20
 LINE_RESOLUTION = .5
 MAX_THROTTLE = .7
-EMERGENCY_BRAKE_DISTANCE = 5
+EMERGENCY_BRAKE_DISTANCE = 6
 K_BRAKE = 8
 class Controller:
     def __init__(self, K, L, path=None, goal_tol=1):
