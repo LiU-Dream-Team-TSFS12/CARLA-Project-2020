@@ -34,7 +34,7 @@ class Lidar:
     def _store_points(self, data, sen_loc, v):
         self._mtx.acquire()
         for loc in data:
-            if loc.z >= 0 or (loc.y > 0 and loc.x**2 + loc.y**2 < 2**2):
+            if loc.z >= .5 or (loc.y > 0 and loc.x**2 + loc.y**2 < 2**2):
                 continue
             self._buffer.appendleft(carla.Location(x = np.cos(v) * loc.x - np.sin(v) * loc.y,
                                                    y = np.sin(v) * loc.x + np.cos(v) * loc.y,
@@ -43,14 +43,14 @@ class Lidar:
 
     def fetch_points(self):
         points = []
-        
+
         self._mtx.acquire()
         while len(self._buffer) > 0:
             points.append(self._buffer.pop())
         self._mtx.release()
-        
+
         return points
-    
+
     def start(self):
         def callback(data):
             self._callback(data)
