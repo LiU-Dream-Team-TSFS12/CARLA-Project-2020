@@ -79,32 +79,23 @@ class Controller:
 
     def find_nearest_obstacle(self, w, wg, _world):
         origin = np.array([w[0], w[1]])
-        #heading = np.array([np.cos(w[2]), np.sin(w[2])])
-        #normal = np.array([np.sin(w[2]), -np.cos(w[2])])
 
-        lines = []
 
-        """for i in range(-3, 4):
-            lines.append(self.vector_to_points(heading * LOOK_AHEAD_HORIZON,
-                                               origin + normal * i
-                                               * LINE_RESOLUTION,
-                                               LINE_RESOLUTION))
-        """
-        lines.append(self.perception_points(origin))
+
         closest_dist = float('inf')
-        for points in lines:
-            for p in points:
-                d = p.dist
 
-                if wg.is_obstructed((p.x,p.y)) and d < closest_dist:
-                    closest_dist = d
+        for p in self.perception_points(origin):
+            d = p.dist
+
+            if wg.is_obstructed((p.x,p.y)) and d < closest_dist:
+                closest_dist = d
 
 
-                    # debug
-                    _world.debug.draw_point(carla.Location(x=p.x, y=p.y, z=1),
-                                           color=carla.Color(255, 0, 255),
-                                           size=.02, life_time=.2)
-        #bruh
+            # debug
+            _world.debug.draw_point(carla.Location(x=p.x, y=p.y, z=1),
+                                       color=carla.Color(255, 0, 255),
+                                       size=.02, life_time=.2)
+
         return closest_dist
 
     def u(self, t, w, wg, _world):
@@ -129,7 +120,6 @@ class Controller:
             elif obstacle_distance > 50:
                 a = MAX_THROTTLE
             elif obstacle_distance < v * 3:
-                #a = MAX_THROTTLE - K_BRAKE/obstacle_distance
                 a = 0.0
                 b = K_BRAKE/obstacle_distance
             else:
@@ -164,13 +154,3 @@ class Controller:
 
         # Output
         return np.array([delta, a, b])
-
-    def run(self, t, w):
-        p_goal = self.plan.path[-1, :]
-        p_car = w[0:2]
-        dp = p_car - p_goal
-        dist = np.sqrt(dp.dot(dp))
-        if dist < self.goal_tol:
-            return False
-        else:
-            return True
