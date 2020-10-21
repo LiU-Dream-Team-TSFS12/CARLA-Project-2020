@@ -3,7 +3,7 @@
 import carla
 import time
 import numpy as np
-import matplotlib.pyplot as plt
+
 import sys
 from agents.navigation.global_route_planner_dao import GlobalRoutePlannerDAO
 from agents.navigation.global_route_planner import GlobalRoutePlanner
@@ -33,9 +33,9 @@ world = client.get_world()
 # clear old actors
 actors = world.get_actors()
 for a in actors:
-    if not a.type_id == "spectator":
-        #a.destroy()
-        pass
+    if a.type_id == "vehicle.tesla.model3":
+        a.destroy()
+        #pass
 
 bpl = world.get_blueprint_library()
 sp = world.get_spectator()
@@ -74,7 +74,7 @@ print('Planned a mission of length {:.2f} m'.format(path.length))
 print('Position car ans spectator to beginning of path')
 t = route[0][0].transform
 car.set_transform(t)
-t.location.z += 25  # 25 meters above car
+t.location.z += 40  # 25 meters above car
 sp.set_transform(t)
 
 # Plot the plan in the Carla simulator.
@@ -142,26 +142,3 @@ ctrl.t = np.array(ctrl.t)-ctrl.t[0]
 print('Finished mission, removing car from simulator')
 for a in actors:
     a.destroy()
-
-print('Plot some results')
-s = np.linspace(0, path.length, 500)
-plt.figure(20, clear=True)
-plt.plot(path.x(s), path.y(s), 'b', label='Planned path')
-plt.plot(car_states[:, 0], car_states[:, 1], 'r', label='Actual path')
-plt.xlabel('t [s]')
-BoxOff()
-
-plt.figure(21, clear=True)
-plt.plot(ctrl.t, car_states[:, 3]*3.6)
-plt.ylabel('km/h')
-plt.title('Speed')
-plt.xlabel('t [s]')
-BoxOff()
-
-plt.figure(22, clear=True)
-plt.plot(ctrl.t, ctrl.delta)
-plt.ylabel('%')
-plt.title('Steer action')
-plt.xlabel('t [s]')
-BoxOff()
-plt.show()
