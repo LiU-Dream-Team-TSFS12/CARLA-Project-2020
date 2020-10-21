@@ -5,7 +5,7 @@ LOOK_AHEAD_HORIZON = 20
 LINE_RESOLUTION = .5
 MAX_THROTTLE = .7
 EMERGENCY_BRAKE_DISTANCE = 5
-K_THROTTLE = 8
+K_BRAKE = 8
 class Controller:
     def __init__(self, K, L, path=None, goal_tol=1):
         self.plan = path
@@ -82,17 +82,20 @@ class Controller:
         a = MAX_THROTTLE
         b = 0
         if obstacle_pos is not None:
-            obstacle_dictance = np.linalg.norm(np.array([x, y]) - obstacle_pos)
-            if obstacle_dictance < v * 2 or obstacle_dictance < EMERGENCY_BRAKE_DISTANCE:
+            obstacle_distance = np.linalg.norm(np.array([x, y]) - obstacle_pos)
+            if obstacle_distance < EMERGENCY_BRAKE_DISTANCE:
                 a=0.0
                 b=1.0
-            if obstacle_dictance < v * 3:
-                #a = MAX_THROTTLE - K_THROTTLE/obstacle_dictance
+            elif obstacle_distance < v * 3:
+                #a = MAX_THROTTLE - K_BRAKE/obstacle_distance
                 a = 0
-                b = K_THROTTLE/obstacle_dictance
-                print(b)
+                b = K_BRAKE/obstacle_distance
+                #print(b)
+
             a = np.max((0.0,np.min((MAX_THROTTLE,a))))
             b = np.max((0.0,np.min((1.0,b))))
+
+        print("T: %f \tB: %f" % (a, b))
 
         # Calculate position and distance error
         self.w.append(w)
