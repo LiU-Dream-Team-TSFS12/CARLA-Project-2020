@@ -3,7 +3,9 @@ import numpy as np
 
 LOOK_AHEAD_HORIZON = 20
 LINE_RESOLUTION = .5
-
+MAX_THROTTLE = .7
+EMERGENCY_BRAKE_DISTANCE = 5
+K_THROTTLE = 8
 class Controller:
     def __init__(self, K, L, path=None, goal_tol=1):
         self.plan = path
@@ -77,16 +79,19 @@ class Controller:
         obstacle_pos = self.find_nearest_obstacle(w, wg, _world)
 
         # Colission avoidance
-        a = 0.7
+        a = MAX_THROTTLE
         b = 0
         if obstacle_pos is not None:
             obstacle_dictance = np.linalg.norm(np.array([x, y]) - obstacle_pos)
-            if obstacle_dictance < v * 2 or obstacle_dictance < 8:
+            if obstacle_dictance < v * 2 or obstacle_dictance < EMERGENCY_BRAKE_DISTANCE:
                 a=0.0
                 b=1.0
-            elif obstacle_dictance < v * 3:
-                a = 0.7 -8 / obstacle_dictance
-            a = np.max((0.0,np.min((0.7,a))))
+            if obstacle_dictance < v * 3:
+                #a = MAX_THROTTLE - K_THROTTLE/obstacle_dictance
+                a = 0
+                b = K_THROTTLE/obstacle_dictance
+                print(b)
+            a = np.max((0.0,np.min((MAX_THROTTLE,a))))
             b = np.max((0.0,np.min((1.0,b))))
 
         # Calculate position and distance error
