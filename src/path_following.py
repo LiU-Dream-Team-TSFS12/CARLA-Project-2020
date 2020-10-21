@@ -40,8 +40,8 @@ world.set_weather(weather.ClearNoon)
 # A simple first test-case -- path following in an empty world
 #p1 = carla.Location(x=200, y=-6, z=1)  # Start point
 #p2 = carla.Location(x=142.1, y=64, z=1)  # End point
-p1 = carla.Location(x=243, y=100, z=1)  # Start point
-p2 = carla.Location(x=244, y=-167, z=1)  # End point
+p1 = carla.Location(x=243, y=120, z=1)  # Start point
+p2 = carla.Location(x=248, y=-60, z=1)  # End point
 
 bp = rg.choice(bpl.filter('vehicle.tesla.model3'))
 print('Random selection: {}'.format(bp.id))
@@ -61,7 +61,7 @@ route = rp.trace_route(p1, p2)
 
 # Spawn an obstacle car
 bp = rg.choice(bpl.filter('vehicle.audi.*'))
-obs = world.spawn_actor(bp, route[70][0].transform)
+obs = world.spawn_actor(bp, route[40][0].transform)
 obs.apply_control(carla.VehicleControl(throttle=0.3, steer=0))
 actors.append(obs)
 
@@ -84,7 +84,8 @@ init_transform = route[0][0].transform # Set car in initial position of the plan
 car.set_transform(init_transform)
 car.apply_control(carla.VehicleControl(throttle=0, steer=0))
 
-K = np.array([0.1, 0.25]).reshape((1, 2))
+#K = np.array([.15, 3]).reshape((1, 2)) / 10
+K = np.array([.01, 0.15]).reshape((1, 2))
 L = 3.5
 car_states = []
 tl = []
@@ -99,7 +100,7 @@ from object_detector import ObjectDetector
 object_detector = ObjectDetector(lidar, 1)
 
 from route_planner import RoutePlanner
-route_planner = RoutePlanner([r[0] for r in route], .5)
+route_planner = RoutePlanner([r[0] for r in route], .1)
 
 lidar.start()
 

@@ -3,7 +3,10 @@ import carla
 from algs import splinepath
 
 NUM_WAYPOINTS_PER_LANE_CHANGE = 15
-NUM_WAYPOINTS_PER_OVERTAKE = 10
+NUM_WAYPOINTS_PER_OVERTAKE = 15
+NUM_WAYPOINTS_PER_MARGIN = 0
+
+WIDTH_RESOLUTION = .5
 
 class RoutePlanner:
     def __init__(self, waypoints, clear_interval):
@@ -18,7 +21,7 @@ class RoutePlanner:
     def _gen_spline_path(self, waypoints):
         p = np.array([(wp.transform.location.x, wp.transform.location.y)
                       for wp in waypoints])
-        return splinepath.SplinePath(p, min_grid=3)
+        return splinepath.SplinePath(p, min_grid=1)
 
     def get_path(self, dt, w, wg, _world):
         self._time += dt
@@ -39,7 +42,7 @@ class RoutePlanner:
         self._waypoints = self._waypoints[wp_i:]
 
         # Calculate obstruction point
-        collision_point = self._get_path_obstruction_point(self._path, s0, 20, .1, wg)
+        collision_point = self._get_path_obstruction_point(self._path, s0, 30, .1, wg)
 
         for c in wg.get_corners():
             for i in range(len(c)):
@@ -53,7 +56,7 @@ class RoutePlanner:
             self._path = self._gen_spline_path(self._waypoints)
             return self._path
 
-        # Collision was found, find closest safe waypoint
+        # Collision was found, find closest safe waypoint5
         wp_c, wp_ci = self._get_prev_waypoint(collision_point)
 
         print("--------------------")
@@ -63,9 +66,9 @@ class RoutePlanner:
 
         # Update waypoints
 
-        lane_change_start_index = max(wp_ci - NUM_WAYPOINTS_PER_LANE_CHANGE, 0)
-        lane_change_done_index = wp_ci
-        lane_overtake_done_index = lane_change_done_index + NUM_WAYPOINTS_PER_OVERTAKE
+        lane_change_start_index = max(wp_ci - NUM_WAYPOINTS_PER_LANE_CHANGE - NUM_WAYPOINTS_PER_MARGIN, 0)
+        lane_change_done_index = max(wp_ci - NUM_WAYPOINTS_PER_MARGIN, 0)
+        lane_overtake_done_index = lane_change_done_index + NUM_WAYPOINTS_PER_OVERTAKE + NUM_WAYPOINTS_PER_MARGIN
         lane_rejoin_index = lane_overtake_done_index + NUM_WAYPOINTS_PER_LANE_CHANGE
 
         # Waypoints until lane change
@@ -85,7 +88,7 @@ class RoutePlanner:
         for i in range(lane_change_done_index + 1, lane_overtake_done_index+1):
             wp = self._waypoints[i]
 
-            if not (wp.lane_change in (carla.LaneChange.Left, carla.LaneChange.Both) and not wp.is_junction):
+            if not (wp.get_left_lane() is not None and wp.lane_change in (carla.LaneChange.Left, carla.LaneChange.Both)):
                 # Could not change lane
                 self._path = self._gen_spline_path(self._waypoints)
                 return self._path
@@ -98,37 +101,47 @@ class RoutePlanner:
         for i, wp in enumerate(new_waypoints):
             _world.debug.draw_point(wp.transform.location,
                                     color=carla.Color(0, 255, 255),
-                                    size=.1, life_time=20)
+                                    size=.1, life_time=1)
 
         # Generate new path
         new_path = self._gen_spline_path(new_waypoints)
-
-        """s = np.linspace(0, new_path.length, 500)
-        for s1, s2 in zip(s[:-1], s[1:]):
-            s1_loc = carla.Location(x=float(new_path.x(s1)), y=float(new_path.y(s1)), z=0.5)
-            s2_loc = carla.Location(x=float(new_path.x(s2)), y=float(new_path.y(s2)), z=0.5)
-            _world.debug.draw_line(s1_loc, s2_loc, thickness=0.35,
-                                  life_time=.5, color=carla.Color(r=255))"""
 
         # Check if new path has collisions
         if self._get_path_obstruction_point(new_path, 0, np.linalg.norm(p - np.array([wp_c.transform.location.x, wp_c.transform.location.y])), .1, wg) is None:
             self._waypoints = new_waypoints
             self._path = new_path
 
-            return self._path
+        return self._path
 
         # Could not find a sufficient correction path
         self._path = self._gen_spline_path(self._waypoints)
         return self._path
 
     def _get_path_obstruction_point(self, path, s0, d, res, wg):
-        for s in np.linspace(s0, s0+d, d / res + 1):
-            p = path.p(s)
-            """_world.debug.draw_point(carla.Location(x=p[0], y=p[1], z=.9),
-                                    color=carla.Color(0, 0, 255),
-                                    size=.1, life_time=.4)"""
-            if wg.is_obstructed(p):
-                return p
+        displacement=0
+        distance = 0.0
+
+        points=[]
+        while distance < d:
+            s = s0 + displacement
+            x = path.p(s)[0]
+            y = path.p(s)[1]
+            if points:
+                delta_x = points[-1][0] - x
+                delta_y = points[-1][1] - y
+                distance += np.linalg.norm(np.array([delta_x, delta_y]))
+
+            points.append(np.array([x, y]))
+            displacement += res
+
+        for p in points:
+            for i in [-4,-3,-2,-1,1,2,3,4]:
+                normal = np.array([-p[1], p[0]])
+                normal /= np.linalg.norm(normal)
+                new_p = p + i*res*normal
+                if wg.is_obstructed(new_p):
+                    return p
+
         return None
 
     def _get_prev_waypoint(self, p):
@@ -148,7 +161,7 @@ class RoutePlanner:
             dist_vect /= d
 
             # Check if waypoints passed p
-            if prev_dist_vect is not None and np.dot(prev_dist_vect, dist_vect) < 0:
+            if prev_dist_vect is not None and np.dot(prev_dist_vect, dist_vect) < np.cos(np.pi / 4):
                 return self._waypoints[i-1], i-1
 
             prev_dist_vect = dist_vect
