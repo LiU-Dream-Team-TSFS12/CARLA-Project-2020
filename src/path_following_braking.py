@@ -33,7 +33,17 @@ world = client.get_world()
 # clear old actors
 actors = world.get_actors()
 for a in actors:
-    if a.type_id == "vehicle.tesla.model3":
+    if a.type_id == "vehicle.tesla
+    def run(self, t, w):
+        p_goal = self.plan.path[-1, :]
+        p_car = w[0:2]
+        dp = p_car - p_goal
+        dist = np.sqrt(dp.dot(dp))
+        if dist < self.goal_tol:
+            return False
+        else:
+            return True
+.model3":
         a.destroy()
 
 bpl = world.get_blueprint_library()
