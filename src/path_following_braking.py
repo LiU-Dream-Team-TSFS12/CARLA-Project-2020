@@ -35,7 +35,6 @@ actors = world.get_actors()
 for a in actors:
     if a.type_id == "vehicle.tesla.model3":
         a.destroy()
-        #pass
 
 bpl = world.get_blueprint_library()
 sp = world.get_spectator()
@@ -107,9 +106,9 @@ ctrl = Controller(K, L, path)
 
 lidar.start()
 
-#spawn car
-p_obs_car = carla.Location(x = 150,y=-4.5,z=0.2)
-r_obs_car = carla.Rotation(pitch=0.0,yaw=180.0,roll=0.0)
+# Spawn car
+#p_obs_car = carla.Location(x = 150,y=-4.5,z=0.2)
+#r_obs_car = carla.Rotation(pitch=0.0,yaw=180.0,roll=0.0)
 #obs_car = world.spawn_actor(bp,carla.Transform(p_obs_car,r_obs_car))
 #obs_car.apply_control(carla.VehicleControl(throttle=0.3,steer=0.0))
 
