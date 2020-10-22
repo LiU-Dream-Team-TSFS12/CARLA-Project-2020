@@ -18,12 +18,14 @@ class RoutePlanner:
         # Plan a splinepath
         self._path = self._gen_spline_path(waypoints)
 
+
     def _gen_spline_path(self, waypoints):
         p = np.array([(wp.transform.location.x, wp.transform.location.y)
                       for wp in waypoints])
         return splinepath.SplinePath(p, min_grid=1)
 
     def get_path(self, dt, w, wg, _world):
+
         self._time += dt
 
         if self._time < self._clear_interval:
@@ -37,12 +39,18 @@ class RoutePlanner:
         s0 = self._path.project(p, self._prev_s, .5, 10)[0]
         self._prev_s = s0
 
+        print("s0 is ", s0)
+        print("length is ",self._path.length)
+
+        if s0 > self._path.length - 5:
+            return None
         # Remove past waypoints
         _, wp_i = self._get_prev_waypoint(self._path.p(s0))
         self._waypoints = self._waypoints[wp_i:]
 
         # Calculate obstruction point
-        collision_point = self._get_path_obstruction_point(self._path, s0, 30, .1, wg)
+        look_ahead = min(30, self._path.length - s0 - 1)
+        collision_point = self._get_path_obstruction_point(self._path, s0, look_ahead, .1, wg)
 
         for c in wg.get_corners():
             for i in range(len(c)):
@@ -107,7 +115,8 @@ class RoutePlanner:
         new_path = self._gen_spline_path(new_waypoints)
 
         # Check if new path has collisions
-        if self._get_path_obstruction_point(new_path, 0, np.linalg.norm(p - np.array([wp_c.transform.location.x, wp_c.transform.location.y])), .1, wg) is None:
+        look_ahead = min(np.linalg.norm(p - np.array([wp_c.transform.location.x, wp_c.transform.location.y])), self._path.length - s0 - 1)
+        if self._get_path_obstruction_point(new_path, 0, look_ahead, .1, wg) is None:
             self._waypoints = new_waypoints
             self._path = new_path
 

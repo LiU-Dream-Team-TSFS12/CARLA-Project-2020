@@ -49,7 +49,8 @@ class Controller:
         distance = 0.0
 
         points=[]
-        while distance < LOOK_AHEAD_HORIZON:
+        look_ahead = min(LOOK_AHEAD_HORIZON, path.length - s0 - 1)
+        while distance < look_ahead:
             s = s0 + displacement
             x = path.p(s)[0]
             y = path.p(s)[1]
