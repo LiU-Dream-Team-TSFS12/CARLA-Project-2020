@@ -105,7 +105,7 @@ route_planner = RoutePlanner([r[0] for r in route], .1)
 lidar.start()
 
 from controller import Controller
-ctrl = Controller(K, L)
+ctrl = Controller(K, L, world.debug)
 
 import time
 
@@ -128,7 +128,7 @@ while True:
     #print("obj. detector duration: ", time.time() - now)
 
     #now = time.time()
-    path = route_planner.get_path(dt, w, wg, world)
+    path = route_planner.get_path(dt, w, wg)
     #print("route planner duration: ", time.time() - now)
 
     # Temporary debug draw
@@ -140,7 +140,7 @@ while True:
                               life_time=.5, color=carla.Color(b=255))
 
     # Compute control signal and apply to car
-    u = ctrl.u(tck.timestamp.elapsed_seconds, w, wg, path, world)
+    u = ctrl.u(tck.timestamp.elapsed_seconds, w, wg, path)
     car.apply_control(carla.VehicleControl(throttle=u[1], steer=u[0], brake=u[2]))
 
 
