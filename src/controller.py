@@ -95,22 +95,22 @@ class Controller:
 
         # Colission avoidance
         throttle = MAX_THROTTLE
-        brake = 0
+        brake = .0
         if obstacle_distance !=  float('inf'):
             if obstacle_distance < EMERGENCY_BRAKE_DISTANCE:
-                throttle = 0
-                brake = 1
+                throttle = .0
+                brake = 1.0
             elif obstacle_distance > LOOK_AHEAD_HORIZON:
                 throttle = MAX_THROTTLE
             elif obstacle_distance < v * 3:
-                throttle = 0
+                throttle = .0
                 brake = K_BRAKE / obstacle_distance
             else:
                 throttle = v / 14 + obstacle_distance / 40
-                brake = 0
+                brake = .0
 
-            throttle = np.max((0, np.min((MAX_THROTTLE, throttle))))
-            brake = np.max((0, (np.min(1, brake))))
+            throttle = np.max((.0, np.min((MAX_THROTTLE, throttle))))
+            brake = np.max((.0, np.min((1.0, brake))))
 
         # Calculate position and distance error
         p_car = w[0:2]

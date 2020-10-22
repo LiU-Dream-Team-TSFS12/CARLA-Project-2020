@@ -68,7 +68,6 @@ try:
     t = route[0][0].transform
     car.set_transform(t)
     t.location.z += 25  # 15 meters above car
-    t.rotation = (carla.Rotation(-90,0,0))
     sp.set_transform(t)
     car.apply_control(carla.VehicleControl(throttle=0, steer=0))
 
@@ -92,7 +91,7 @@ try:
     lidar.start()
 
     from controller import Controller
-    ctrl = Controller(K, L)
+    ctrl = Controller(K, L, world.debug)
 
 
     previous_time = -1
@@ -103,33 +102,28 @@ try:
         v = np.sqrt(v.x**2+v.y**2+v.z**2)
         w = np.array([t.location.x, t.location.y, t.rotation.yaw*np.pi/180.0, v])
 
-        spt = sp.get_transform()
-        spt.location = t.location
-        spt.location.z += 80
-        sp.set_transform(spt)
-
         if previous_time == -1:
             previous_time = tck.timestamp.elapsed_seconds
 
         dt = tck.timestamp.elapsed_seconds - previous_time
         wg = object_detector.get_world_grid(dt)
-        path = route_planner.get_path(dt, w, wg, world)
+        path = route_planner.get_path(dt, w, wg)
 
         #If car is on the end of the path
         if path is None:
             break
 
-        # Temporary debug draw
-        """
-        s = np.linspace(0, path.length, 500)
-        for s1, s2 in zip(s[:-1], s[1:]):
-            s1_loc = carla.Location(x=float(path.x(s1)), y=float(path.y(s1)), z=0.5)
-            s2_loc = carla.Location(x=float(path.x(s2)), y=float(path.y(s2)), z=0.5)
-            world.debug.draw_line(s1_loc, s2_loc, thickness=0.35,
-                                  life_time=.1, color=carla.Color(b=255))
-        """
+
+        # Draw lidar obstructions
+        for c in wg.get_corners():
+            for i in range(len(c)):
+                world.debug.draw_line(carla.Location(x=c[i-1][0], y=c[i-1][1], z=.7),
+                                       carla.Location(x=c[i][0], y=c[i][1], z=.7),
+                                       thickness = .07, color=carla.Color(255, 0, 0),
+                                       life_time = .3)
+
         # Compute control signal and apply to car
-        u = ctrl.u(tck.timestamp.elapsed_seconds, w, wg, path, world)
+        u = ctrl.u(tck.timestamp.elapsed_seconds, w, wg, path)
         car.apply_control(carla.VehicleControl(throttle=u[1], steer=u[0], brake=u[2]))
 
 
@@ -142,10 +136,7 @@ finally:
     lidar.stop()
     car.apply_control(carla.VehicleControl(throttle=0, steer=0))
     obs.apply_control(carla.VehicleControl(throttle=0, steer=0))
-    ctrl.t = np.array(ctrl.t)-ctrl.t[0]
     #Destoy all actors if there are any
-    """
     for actor in world.get_actors():
         if actor.type_id != 'spectator':
             actor.destroy()
-    """

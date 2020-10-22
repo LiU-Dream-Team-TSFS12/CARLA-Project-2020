@@ -60,14 +60,6 @@ class RoutePlanner:
                                                            LOOK_AHEAD_RESOLUTION,
                                                            wg)
 
-        # TODO: MOVE TO ANOTHER FILE
-        """for c in wg.get_corners():
-            for i in range(len(c)):
-                _world.debug.draw_line(carla.Location(x=c[i-1][0], y=c[i-1][1], z=.7),
-                                       carla.Location(x=c[i][0], y=c[i][1], z=.7),
-                                       thickness = .07, color=carla.Color(255, 0, 0),
-                                       life_time = .4)"""
-
         # If no collision was found, return trimmed path
         if collision_point is None:
             self._path = self._gen_spline_path(self._waypoints)
