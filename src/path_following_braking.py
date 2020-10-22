@@ -117,13 +117,13 @@ while ctrl.s0 < path.length-5:
 
     # Simulate modules
     wg = object_detector.get_world_grid(tck.timestamp.delta_seconds)
-    u = ctrl.u(tck.timestamp.elapsed_seconds, w, wg, world)
+    u = ctrl.u(tck.timestamp.elapsed_seconds, w, wg, path, world)
 
     # Camera following
-    t.rotation = (carla.Rotation(-90,90,0))
-    spt = sp.get_transform()
-    t.location.z = spt.location.z
-    sp.set_transform(t)
+    #t.rotation = (carla.Rotation(-90,90,0))
+    #spt = sp.get_transform()
+    #t.location.z = spt.location.z
+    #sp.set_transform(t)
 
     # Apply control signal
     car.apply_control(carla.VehicleControl(throttle=u[1], steer=u[0], brake=u[2]))

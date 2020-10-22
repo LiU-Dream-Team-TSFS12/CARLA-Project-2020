@@ -6,7 +6,7 @@ LINE_RESOLUTION = .5
 WIDTH_RESOLUTION = .25
 MAX_THROTTLE = .7
 EMERGENCY_BRAKE_DISTANCE = 6
-K_BRAKE = 8
+K_BRAKE = 4
 
 
 class PathPoint:
@@ -90,7 +90,7 @@ class Controller:
 
             # debug
             _world.debug.draw_point(carla.Location(x=p.x, y=p.y, z=1),
-                                       color=carla.Color(255, 0, 255),
+                                       color=carla.Color(200, 200, 0),
                                        size=.02, life_time=.2)
 
         return closest_dist
@@ -110,17 +110,17 @@ class Controller:
         a = MAX_THROTTLE
         b = 0
         if obstacle_distance !=  float('inf'):
-            print("Closest at: %f \tm" % obstacle_distance)
+            #print("Closest at: %f \tm" % obstacle_distance)
             if obstacle_distance < EMERGENCY_BRAKE_DISTANCE:
                 a=0.0
                 b=1.0
             elif obstacle_distance > 50:
                 a = MAX_THROTTLE
-            elif obstacle_distance < v * 3:
+            elif obstacle_distance < v * 2:
                 a = 0.0
                 b = K_BRAKE/obstacle_distance
             else:
-                a = v/14 + obstacle_distance/40
+                a = v/14 + obstacle_distance/30
                 b = 0.0
 
             a = np.max((0.0,np.min((MAX_THROTTLE,a))))
