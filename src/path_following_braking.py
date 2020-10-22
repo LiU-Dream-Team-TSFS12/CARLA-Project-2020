@@ -100,7 +100,7 @@ print('Start driving ...')
 # Modules
 lidar = Lidar(world, car)
 
-object_detector = ObjectDetector(lidar, .5)
+object_detector = ObjectDetector(lidar, .1)
 
 ctrl = Controller(K, L, world.debug)
 

@@ -75,6 +75,12 @@ class Controller:
             if wg.is_obstructed((p.x,p.y)) and d < closest_dist:
                 closest_dist = d
 
+                if self._debug is not None:
+                    self._debug.draw_line(carla.Location(x=w[0], y=w[1], z=1),
+                                          carla.Location(x=p.x, y=p.y, z=1),
+                                          color=carla.Color(0, 255, 0),
+                                          thickness=.15, life_time=.1)
+
             if self._debug is not None:
                 self._debug.draw_point(carla.Location(x=p.x, y=p.y, z=1),
                                        color=carla.Color(200, 200, 0),
