@@ -17,17 +17,14 @@ class PathPoint:
         self.normal = normal
 
 class Controller:
-    def __init__(self, K, L, goal_tol=1):
+    def __init__(self, K, L, debug=None):
         self.K = K
-        self.goal_tol = goal_tol
-        self.d = []
-        self.delta = []
-        self.theta_e = []
-        self.s_p = []
         self.L = L
         self.s0 = 0
-        self.t = []
-        self.w = []
+
+        # Used for decision visualization
+        # Set to 'None' to skip rendering
+        self._debug = debug
 
     def heading_error(self, heading, s, path):
         """Compute theta error"""
@@ -38,16 +35,12 @@ class Controller:
         theta_e = np.arctan2(sin_alpha, cos_alpha)
         return theta_e
 
-    def perception_points(self, origin, path):
-        #points = [origin]
-        #while np.linalg.norm(points[-1] - (origin + v)) >= res:
-            #points.append(points[-1] + v / np.linalg.norm(v) * res)
+    def perception_points(self, path):
         s0=self.s0
-        #s = self.plan.project(origin,0)
-        #print(self.plan.p(s0))
         displacement=0
         distance = 0.0
 
+        # Find points along path
         points=[]
         look_ahead = min(LOOK_AHEAD_HORIZON, path.length - s0 - 1)
         while distance < look_ahead:
@@ -60,42 +53,36 @@ class Controller:
                 distance += np.linalg.norm(np.array([delta_x, delta_y]))
 
             point = PathPoint(x, y, distance, path.heading(s)[1])
-            #print(plan.heading(s)[1])
             points.append(point)
             displacement += LINE_RESOLUTION
 
+        # Generate points along path-normal for every point in 'points'
         side_points = []
         for p in points:
             for i in [-4,-3,-2,-1,1,2,3,4]:
                 p_vec = np.array([p.x, p.y])
-                #print(p.normal)
                 new_p = p_vec + i*WIDTH_RESOLUTION*p.normal
                 side_points.append(PathPoint(new_p[0], new_p[1], p.dist, p.normal))
         points += side_points
         return points
 
-
-
-    def find_nearest_obstacle(self, w, wg, path, _world):
-        origin = np.array([w[0], w[1]])
+    def find_nearest_obstacle(self, w, wg, path):
 
         closest_dist = float('inf')
-
-        for p in self.perception_points(origin, path):
+        for p in self.perception_points(path):
             d = p.dist
 
             if wg.is_obstructed((p.x,p.y)) and d < closest_dist:
                 closest_dist = d
 
-
-            # debug
-            _world.debug.draw_point(carla.Location(x=p.x, y=p.y, z=1),
+            if self._debug is not None:
+                self._debug.draw_point(carla.Location(x=p.x, y=p.y, z=1),
                                        color=carla.Color(200, 200, 0),
                                        size=.02, life_time=.2)
 
         return closest_dist
 
-    def u(self, t, w, wg, path, _world):
+    def u(self, t, w, wg, path):
         def glob_stab_fact(x):
             """Series expansion of sin(x)/x around x=0."""
             return 1 - x**2/6 + x**4/120 - x**6/5040
@@ -104,33 +91,28 @@ class Controller:
         x, y, theta, v = w
 
         # Find nearest obstacle
-        obstacle_distance = self.find_nearest_obstacle(w, wg, path, _world)
+        obstacle_distance = self.find_nearest_obstacle(w, wg, path)
 
         # Colission avoidance
-        a = MAX_THROTTLE
-        b = 0
+        throttle = MAX_THROTTLE
+        brake = .0
         if obstacle_distance !=  float('inf'):
-            #print("Closest at: %f \tm" % obstacle_distance)
             if obstacle_distance < EMERGENCY_BRAKE_DISTANCE:
-                a=0.0
-                b=1.0
-            elif obstacle_distance > 50:
-                a = MAX_THROTTLE
+                throttle = .0
+                brake = 1.0
+            elif obstacle_distance > LOOK_AHEAD_HORIZON:
+                throttle = MAX_THROTTLE
             elif obstacle_distance < v * 2:
-                a = 0.0
-                b = K_BRAKE/obstacle_distance
+                throttle = .0
+                brake = K_BRAKE / obstacle_distance
             else:
-                a = v/14 + obstacle_distance/30
-                b = 0.0
+                throttle = v / 14 + obstacle_distance / 30
+                brake = .0
 
-            a = np.max((0.0,np.min((MAX_THROTTLE,a))))
-            b = np.max((0.0,np.min((1.0,b))))
-
-
-        #print("T: %f \tB: %f" % (a, b))
+            throttle = np.max((.0, np.min((MAX_THROTTLE, throttle))))
+            brake = np.max((.0, np.min((1.0, brake))))
 
         # Calculate position and distance error
-        self.w.append(w)
         p_car = w[0:2]
         si, d = path.project(p_car, self.s0, ds=2, s_lim=20)
 
@@ -142,12 +124,5 @@ class Controller:
         u =  - self.K.dot(np.array([d*glob_stab_fact(theta_e), theta_e]))[0]
         delta = np.max((-1.0, np.min((1.0, self.L*u))))
 
-        # Update self
-        self.d.append(d)
-        self.delta.append(delta)
-        self.s_p.append(si)
-        self.theta_e.append(theta_e)
-        self.t.append(t)
-
         # Output
-        return np.array([delta, a, b])
+        return np.array([delta, throttle, brake])

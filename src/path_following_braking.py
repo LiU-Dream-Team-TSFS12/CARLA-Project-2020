@@ -102,10 +102,9 @@ lidar = Lidar(world, car)
 
 object_detector = ObjectDetector(lidar, .5)
 
-ctrl = Controller(K, L, path)
+ctrl = Controller(K, L, world.debug)
 
 lidar.start()
-
 
 while ctrl.s0 < path.length-5:
     tck = world.wait_for_tick(1)
@@ -117,7 +116,7 @@ while ctrl.s0 < path.length-5:
 
     # Simulate modules
     wg = object_detector.get_world_grid(tck.timestamp.delta_seconds)
-    u = ctrl.u(tck.timestamp.elapsed_seconds, w, wg, path, world)
+    u = ctrl.u(tck.timestamp.elapsed_seconds, w, wg, path)
 
     # Camera following
     #t.rotation = (carla.Rotation(-90,90,0))
@@ -127,6 +126,8 @@ while ctrl.s0 < path.length-5:
 
     # Apply control signal
     car.apply_control(carla.VehicleControl(throttle=u[1], steer=u[0], brake=u[2]))
+
+lidar.stop()
 
 # Stop car after finished route
 car.apply_control(carla.VehicleControl(throttle=0, steer=0))
